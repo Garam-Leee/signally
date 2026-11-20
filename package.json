@@ -15,9 +15,10 @@
     "typecheck": "next typegen && tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --conditions=react-server --test src/features/signals/data.test.ts src/features/signals/request-status.test.ts src/features/signals/request-state.test.ts"
+    "test": "node --conditions=react-server --test src/features/signals/data.test.ts src/features/signals/request-status.test.ts src/features/signals/request-state.test.ts src/features/signal-map/crossing-data.test.ts"
   },
   "dependencies": {
+    "maplibre-gl": "^6.19.0",
     "next": "16.4.6",
     "react": "^19",
     "react-dom": "^19",

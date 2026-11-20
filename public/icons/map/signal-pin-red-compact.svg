@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 108" role="img" aria-label="Compact red signal map pin">
+<title>Compact red signal map pin</title><desc>Small map marker without timer</desc>
+
+<path d="M48 5 C72 5 90 24 90 47 C90 67 77 79 48 101 C19 79 6 67 6 47 C6 23 24 5 48 5 Z" fill="#C72E42" stroke="#FFFFFF" stroke-width="5"/>
+<g transform="translate(27 25) scale(.65)" style="color:#FFFFFF"><circle cx="32" cy="12.5" r="5.8" fill="currentColor"/><path d="M32 22.3 V40 M32 28 23 36 M32 28 41 36 M32 40 26.5 52 M32 40 37.5 52" stroke="currentColor" stroke-width="5.3" stroke-linejoin="round" stroke-linecap="round" fill="none"/><g stroke="currentColor" stroke-width="3.3" stroke-linecap="round" opacity=".9"><path d="M10 56 19 50"/><path d="M23 56 28 52"/><path d="M38 56 44 52"/><path d="M50 56 55 52"/></g></g>
+</svg>
