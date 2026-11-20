@@ -1,5 +1,7 @@
 "use client";
 
+import { mapAssetPath } from "./asset-path";
+
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -259,7 +261,7 @@ export function MapView({
       <header className="signal-header">
         <h1 className="signal-brand">
           <Image
-            src="/icons/brand/wordmark.svg"
+            src={mapAssetPath("/icons/brand/wordmark.svg")}
             width={152}
             height={41}
             alt="시그널리 Signally"

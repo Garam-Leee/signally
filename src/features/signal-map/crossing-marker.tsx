@@ -1,3 +1,4 @@
+import { mapAssetPath } from "./asset-path";
 import Image from "next/image";
 import type {
   DisplayReading,
@@ -54,7 +55,9 @@ export function CrossingMarker({
     >
       <span className="crossing-marker-art">
         <Image
-          src={`/icons/map/signal-pin-${color}-${selected ? "selected" : "base"}.svg`}
+          src={mapAssetPath(
+            `/icons/map/signal-pin-${color}-${selected ? "selected" : "base"}.svg`,
+          )}
           width={92}
           height={37}
           alt=""
