@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Signally location control">
+<title>Signally location control</title><desc>Light glass-styled toolbar button</desc>
+
+<circle cx="24" cy="24" r="22.4" fill="#FFFFFF" fill-opacity=".93" stroke="#DBE8E1" stroke-width="1.5"/>
+<g stroke="#064E3B" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="24" r="8"/><circle cx="24" cy="24" r="2.7"/><path d="M24 9 V15 M24 33 V39 M9 24 H15 M33 24 H39"/></g>
+</svg>
