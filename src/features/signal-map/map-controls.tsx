@@ -1,3 +1,4 @@
+import { mapAssetPath } from "./asset-path";
 import Image from "next/image";
 import { Icon } from "./icons";
 
@@ -27,7 +28,7 @@ export function MapControls({
           disabled={disabled}
         >
           <Image
-            src="/icons/map/control-zoom-in.svg"
+            src={mapAssetPath("/icons/map/control-zoom-in.svg")}
             width={30}
             height={30}
             alt=""
@@ -42,7 +43,7 @@ export function MapControls({
           disabled={disabled}
         >
           <Image
-            src="/icons/map/control-zoom-out.svg"
+            src={mapAssetPath("/icons/map/control-zoom-out.svg")}
             width={30}
             height={30}
             alt=""
@@ -58,7 +59,7 @@ export function MapControls({
         disabled={disabled || pending}
       >
         <Image
-          src="/icons/map/control-location.svg"
+          src={mapAssetPath("/icons/map/control-location.svg")}
           width={30}
           height={30}
           alt=""

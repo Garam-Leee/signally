@@ -1,3 +1,4 @@
+import { mapAssetPath } from "./asset-path";
 import { getVersion, Map, ScaleControl, setWorkerUrl } from "maplibre-gl";
 import { center, homeZoom } from "./crossing-data";
 import type { MapCallbacks, MapEngine } from "./map-engine";
@@ -6,7 +7,9 @@ export function createLibreMap(
   container: HTMLElement,
   callbacks: MapCallbacks,
 ): MapEngine {
-  setWorkerUrl("/map-assets/maplibre-gl-worker.mjs?v=" + getVersion());
+  setWorkerUrl(
+    mapAssetPath("/map-assets/maplibre-gl-worker.mjs") + "?v=" + getVersion(),
+  );
   const map = new Map({
     container,
     style: "https://tiles.openfreemap.org/styles/positron",

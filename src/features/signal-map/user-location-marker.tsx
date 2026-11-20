@@ -1,3 +1,4 @@
+import { mapAssetPath } from "./asset-path";
 import Image from "next/image";
 import type { MapEngine } from "./map-engine";
 import type { UserPosition } from "./use-geolocation";
@@ -24,7 +25,7 @@ export function UserLocationMarker({
       />
       <Image
         className="user-dot"
-        src="/icons/map/my-location.svg"
+        src={mapAssetPath("/icons/map/my-location.svg")}
         width={34}
         height={34}
         alt=""
