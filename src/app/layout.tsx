@@ -1,10 +1,16 @@
+import { mapAssetPath } from "@/features/signal-map/asset-path";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "시그널리 | Signally",
-  icons: { icon: { url: "/icons/brand/favicon.svg", type: "image/svg+xml" } },
+  icons: {
+    icon: {
+      url: mapAssetPath("/icons/brand/favicon.svg"),
+      type: "image/svg+xml",
+    },
+  },
   description: "우리 동네 신호를 한눈에",
 };
 

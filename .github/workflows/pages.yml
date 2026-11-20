@@ -1,0 +1,54 @@
+name: Deploy Signally demo to Pages
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: signally-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/configure-pages@v5
+        id: pages
+      - run: pnpm install --frozen-lockfile --strict-peer-dependencies
+      - run: pnpm test
+      - run: pnpm build
+        env:
+          SIGNALLY_PAGES: "1"
+          SIGNALLY_PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+      - name: Check the public demo artifact
+        run: |
+          test -f out/index.html
+          test -f out/map-assets/maplibre-gl-worker.mjs
+          test -f out/icons/brand/favicon.svg
+          test ! -e out/dev/signals
+          test ! -e out/dev/signals.html
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
