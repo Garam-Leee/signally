@@ -15,7 +15,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --test src/features/signals/data.test.ts"
+    "test": "node --conditions=react-server --test src/features/signals/data.test.ts src/features/signals/request-status.test.ts src/features/signals/request-state.test.ts"
   },
   "dependencies": {
     "next": "16.4.6",

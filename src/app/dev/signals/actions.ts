@@ -2,10 +2,16 @@
 
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { inspectSignals, type Inspection } from "@/features/signals/td-data";
-
-let inFlight: Promise<Inspection> | undefined;
-let recent: Inspection | undefined;
+import {
+  inspectSignals,
+  probeMap,
+  type Inspection,
+  type Issue,
+} from "@/features/signals/td-data";
+import {
+  getRequestOverview,
+  type RequestOverview,
+} from "@/features/signals/request-state";
 
 export async function requireLocalDevelopment() {
   if (process.env.NODE_ENV !== "development") notFound();
@@ -17,16 +23,40 @@ export async function requireLocalDevelopment() {
     notFound();
 }
 
-export async function runInspection(): Promise<Inspection> {
+export type InspectorState = {
+  overview: RequestOverview;
+  inspection: Inspection | null;
+  probe: Awaited<ReturnType<typeof probeMap>> | null;
+  issue: Issue | null;
+};
+
+let inFlight = false;
+
+export async function runInspection(
+  _previous: InspectorState,
+  form: FormData,
+): Promise<InspectorState> {
   await requireLocalDevelopment();
-  if (recent && Date.now() - recent.checkedAt < 60_000) return recent;
-  inFlight ??= inspectSignals()
-    .then((result) => {
-      recent = result;
-      return result;
-    })
-    .finally(() => {
-      inFlight = undefined;
-    });
-  return inFlight;
+  const mode = form.get("mode");
+  if (inFlight || (mode !== "probe" && mode !== "area")) {
+    return {
+      overview: await getRequestOverview(),
+      inspection: null,
+      probe: null,
+      issue: inFlight ? "busy" : null,
+    };
+  }
+  inFlight = true;
+  try {
+    const probe = mode === "probe" ? await probeMap() : null;
+    const inspection = mode === "area" ? await inspectSignals() : null;
+    return {
+      overview: await getRequestOverview(),
+      inspection,
+      probe,
+      issue: probe?.issue ?? null,
+    };
+  } finally {
+    inFlight = false;
+  }
 }

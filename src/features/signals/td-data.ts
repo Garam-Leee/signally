@@ -1,73 +1,44 @@
 import "server-only";
-import { mkdir } from "node:fs/promises";
 import { get } from "node:https";
-import { join } from "node:path";
 import {
-  classifyHttpStatus,
   mapPage,
   nearbyCrossroads,
   normalizeSignal,
   type Crossroad,
-} from "./data";
+} from "./data.ts";
+import {
+  acquireRequestLock,
+  readRequestState,
+  releaseRequestLock,
+  reserveCall,
+  saveRequestState,
+} from "./request-state.ts";
+import {
+  parseApiResponse,
+  retryTime,
+  type ConnectionStatus,
+} from "./request-status.ts";
 
 const root = "https://t-data.seoul.go.kr/apig/apiman-gateway/tapi/";
 const pageLimit = 30;
 const pageSize = 100;
-const callLimit = 50;
 export type Issue =
-  | ReturnType<typeof classifyHttpStatus>
+  | Exclude<ConnectionStatus, "ok" | "empty">
   | "missing-key"
   | "budget"
-  | "invalid"
-  | "network"
-  | "storage";
+  | "storage"
+  | "blocked"
+  | "busy"
+  | "probe-required";
 type Response = { ok: true; payload: unknown } | { ok: false; issue: Issue };
 
-async function reserveCall() {
-  const directory = join(process.cwd(), ".td-data-budget");
-  try {
-    await mkdir(directory, { recursive: true });
-    for (let slot = 1; slot <= callLimit; slot++) {
-      try {
-        await mkdir(join(directory, String(slot)));
-        return null;
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      }
-    }
-    return "budget";
-  } catch {
-    return "storage";
-  }
-}
-
-async function request(
-  api: "map" | "signal",
-  params: Record<string, string>,
-): Promise<Response> {
-  if (process.env.NODE_ENV !== "development")
-    return { ok: false, issue: "upstream" };
-  const key = (
-    api === "map"
-      ? process.env.SEOUL_TDATA_MAP_API_KEY
-      : process.env.SEOUL_TDATA_SIGNAL_API_KEY
-  )?.trim();
-  if (!key) return { ok: false, issue: "missing-key" };
-  const issue = await reserveCall();
-  if (issue) return { ok: false, issue };
-  const url = new URL(
-    api === "map"
-      ? "v2xCrossroadMapInformation/1.0"
-      : "v2xSignalPhaseTimingFusionCurrentInfo/1.0",
-    root,
-  );
-  url.search = new URLSearchParams({
-    ...params,
-    type: "json",
-    [api === "map" ? "apiKey" : "apikey"]: key,
-  }).toString();
-  // Node HTTPS keeps the authenticated URL outside Next.js fetch instrumentation.
-  return new Promise((resolve) => {
+function download(url: URL, validate: (payload: unknown) => boolean) {
+  return new Promise<{
+    status: ConnectionStatus;
+    payload?: unknown;
+    retryAfter?: string;
+    serverDate?: string;
+  }>((resolve) => {
     const outgoing = get(
       url,
       {
@@ -76,9 +47,14 @@ async function request(
       },
       (response) => {
         const status = response.statusCode ?? 0;
-        response.on("error", () => resolve({ ok: false, issue: "network" }));
+        response.on("error", () => resolve({ status: "network" }));
+        response.on("aborted", () => resolve({ status: "network" }));
         if (status < 200 || status >= 300) {
-          resolve({ ok: false, issue: classifyHttpStatus(status) });
+          resolve({
+            ...parseApiResponse(status, "", validate),
+            retryAfter: response.headers["retry-after"],
+            serverDate: response.headers.date,
+          });
           response.destroy();
           return;
         }
@@ -87,28 +63,99 @@ async function request(
         response.on("data", (chunk: Buffer) => {
           size += chunk.length;
           if (size > 2_000_000) {
-            resolve({ ok: false, issue: "invalid" });
+            resolve({ status: "invalid" });
             response.destroy();
             return;
           }
           chunks.push(chunk);
         });
-        response.on("end", () => {
-          try {
-            resolve({
-              ok: true,
-              payload: JSON.parse(
-                Buffer.concat(chunks).toString("utf8"),
-              ) as unknown,
-            });
-          } catch {
-            resolve({ ok: false, issue: "invalid" });
-          }
-        });
+        response.on("end", () =>
+          resolve(
+            parseApiResponse(
+              status,
+              Buffer.concat(chunks).toString("utf8"),
+              validate,
+            ),
+          ),
+        );
       },
     );
-    outgoing.on("error", () => resolve({ ok: false, issue: "network" }));
+    outgoing.on("error", () => resolve({ status: "network" }));
   });
+}
+
+async function request(
+  api: "map" | "signal",
+  params: Record<string, string>,
+  probe = false,
+): Promise<Response> {
+  if (process.env.NODE_ENV !== "development")
+    return { ok: false, issue: "upstream" };
+  const key = (
+    api === "map"
+      ? process.env.SEOUL_TDATA_MAP_API_KEY
+      : process.env.SEOUL_TDATA_SIGNAL_API_KEY
+  )?.trim();
+  let locked = false;
+  let resultSaved = true;
+  try {
+    locked = await acquireRequestLock();
+    if (!locked) return { ok: false, issue: "busy" };
+    const state = await readRequestState();
+    if (Date.now() < state.limit.retryAt)
+      return { ok: false, issue: "blocked" };
+    if (!key) return { ok: false, issue: "missing-key" };
+    if (!probe && !state.mapProbePassed)
+      return { ok: false, issue: "probe-required" };
+    if (!(await reserveCall())) return { ok: false, issue: "budget" };
+    resultSaved = false;
+    const url = new URL(
+      api === "map"
+        ? "v2xCrossroadMapInformation/1.0"
+        : "v2xSignalPhaseTimingFusionCurrentInfo/1.0",
+      root,
+    );
+    url.search = new URLSearchParams({
+      ...params,
+      type: "json",
+      [api === "map" ? "apiKey" : "apikey"]: key,
+    }).toString();
+    const result = await download(url, (payload) =>
+      api === "map"
+        ? mapPage.safeParse(payload).success
+        : normalizeSignal(payload, params.itstId, Date.now()) !== null,
+    );
+    const at = Date.now();
+    state[api] = { at, status: result.status };
+    if (api === "map" && probe) state.mapProbePassed = result.status === "ok";
+    if (result.status === "rate") {
+      state.limit = {
+        limitedAt: at,
+        retryAt: retryTime(result.retryAfter, at, result.serverDate),
+      };
+    }
+    await saveRequestState(state);
+    resultSaved = true;
+    return result.status === "ok" || result.status === "empty"
+      ? { ok: true, payload: result.payload }
+      : { ok: false, issue: result.status };
+  } catch {
+    return { ok: false, issue: "storage" };
+  } finally {
+    // If the response could not be recorded, keep the lock and fail closed.
+    if (locked && resultSaved) await releaseRequestLock().catch(() => {});
+  }
+}
+
+export async function probeMap() {
+  const result = await request(
+    "map",
+    { pageNo: "1", numOfRows: String(pageSize) },
+    true,
+  );
+  if (!result.ok) return { issue: result.issue, rows: null };
+  const rows = mapPage.parse(result.payload);
+  return { issue: null, rows: rows.length };
 }
 
 async function readMap() {
@@ -162,7 +209,7 @@ async function readMap() {
 export async function inspectSignals() {
   const { rows, stop, mapAuthenticated } = await readMap();
   const { center, nearby } = nearbyCrossroads(rows);
-  let stopSignal: Issue | undefined;
+  let stopSignal: Issue | undefined = stop === "rate" ? "blocked" : undefined;
   const crossroads: (Crossroad & {
     distance: number;
     issue: Issue | null;
@@ -178,9 +225,16 @@ export async function inspectSignals() {
         });
     if (!response.ok) {
       if (
-        ["auth", "rate", "budget", "missing-key", "storage"].includes(
-          response.issue,
-        )
+        [
+          "auth",
+          "rate",
+          "blocked",
+          "busy",
+          "budget",
+          "missing-key",
+          "storage",
+          "probe-required",
+        ].includes(response.issue)
       )
         stopSignal = response.issue;
       crossroads.push({ ...crossroad, issue: response.issue, signal: null });

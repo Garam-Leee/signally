@@ -1,3 +1,4 @@
+import { parseApiResponse } from "./request-status.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -111,4 +112,46 @@ test("HTTP authentication and rate failures have distinct safe error codes", () 
   assert.equal(classifyHttpStatus(403), "auth");
   assert.equal(classifyHttpStatus(429), "rate");
   assert.equal(classifyHttpStatus(502), "upstream");
+});
+
+test("parses the documented MAP fields and official 10381 sample excerpt", () => {
+  // 10121 only publishes field examples, not a complete JSON success body.
+  const mapExcerpt = [
+    {
+      itstId: 77,
+      itstNm: "롯데백화점도곡",
+      mapCtptIntLat: 37.968756,
+      mapCtptIntLot: 127.547359,
+    },
+  ];
+  assert.equal(
+    parseApiResponse(
+      200,
+      JSON.stringify(mapExcerpt),
+      (data) => mapPage.safeParse(data).success,
+    ).status,
+    "ok",
+  );
+  // 10381 sample preview, reduced to the fields relevant to pedestrian inspection.
+  const officialExcerpt = [
+    {
+      itstId: "20386",
+      trsmUtcTime: 1790571447594,
+      ntPdsgStatNm: null,
+      nePdsgStatNm: "stop-And-Remain",
+      nePdsgRmdrCs: 414,
+    },
+  ];
+  const parsed = parseApiResponse(
+    200,
+    JSON.stringify(officialExcerpt),
+    (data) => normalizeSignal(data, "20386", 1790571448594) !== null,
+  );
+  assert.equal(parsed.status, "ok");
+  assert.deepEqual(
+    normalizeSignal(officialExcerpt, "20386", 1790571448594)?.readings.find(
+      (row) => row.code === "ne",
+    ),
+    { code: "ne", rawState: "stop-And-Remain", rawRemaining: 414 },
+  );
 });

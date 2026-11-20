@@ -1,4 +1,5 @@
 import { requireLocalDevelopment } from "./actions";
+import { getRequestOverview } from "@/features/signals/request-state";
 import { Inspector } from "./inspector";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export default async function DevSignalsPage() {
         반경 500m · 잔여시간은 원본 단위로 표시합니다. 자동 조회 없이 버튼을
         누를 때만 조회합니다.
       </p>
-      <Inspector />
+      <Inspector overview={await getRequestOverview()} />
     </main>
   );
 }
